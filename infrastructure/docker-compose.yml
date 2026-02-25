@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:15
+    container_name: password_lab_db
+    environment:
+      POSTGRES_DB: passwordlab
+      POSTGRES_USER: lab1admin
+      POSTGRES_PASSWORD: pvtp3003
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lab1admin -d passwordlab"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    container_name: password_lab_backend
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://lab1admin:pvtp3003@db:5432/passwordlab
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  postgres_data:

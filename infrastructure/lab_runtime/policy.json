@@ -1,0 +1,62 @@
+{
+  "allowed_commands": [
+    "hashcat",
+    "john",
+    "ls",
+    "cat",
+    "pwd",
+    "echo",
+    "clear",
+    "whoami"
+  ],
+
+  "blocked_commands": [
+    "rm",
+    "rm -rf",
+    "shutdown",
+    "reboot",
+    "poweroff",
+    "init",
+    "mount",
+    "umount",
+    "chmod",
+    "chown",
+    "useradd",
+    "userdel",
+    "passwd",
+    "sudo",
+    "su",
+    "wget",
+    "curl",
+    "nc",
+    "nmap",
+    "ifconfig",
+    "ip",
+    "ping",
+    "scp",
+    "ftp",
+    "ssh",
+    "telnet"
+  ],
+
+  "blocked_patterns": [
+    ";",
+    "&&",
+    "||",
+    "|",
+    "`",
+    "$(",
+    ">",
+    ">>",
+    "<"
+  ],
+
+  "max_command_length": 200,
+
+  "notes": {
+    "purpose": "Restrict lab users to password cracking tools only",
+    "environment": "Isolated Docker container",
+    "network_access": "disabled",
+    "filesystem": "restricted"
+  }
+}
