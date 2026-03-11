@@ -1,29 +1,62 @@
-#!/bin/sh
+#!/bin/bash
+# ═══════════════════════════════════════════════════════
+# Lab Runtime Entrypoint
+#
+# ⚠️  IMPORTANT — Security note on aliases:
+#     Shell aliases only apply to interactive login shells.
+#     When the backend runs:
+#       docker exec <container> bash -c "ls"
+#     it spawns a NON-interactive, NON-login shell.
+#     Aliases are NOT loaded in that context and have
+#     zero security effect for API-driven commands.
+#
+#     Real command blocking is enforced by:
+#       backend/services/command_policy.py
+#     which checks every command BEFORE sending it to
+#     docker exec. This file is for the interactive
+#     shell session only (if a user ever gets a terminal).
+# ═══════════════════════════════════════════════════════
 set -e
 
-echo "🚀 Starting Password Cracking Lab Environment"
+echo ""
+echo "╔══════════════════════════════════════════════╗"
+echo "║   🔐 CyberCare Password Cracking Lab         ║"
+echo "║   Isolated Educational Environment           ║"
+echo "╚══════════════════════════════════════════════╝"
+echo ""
 
-# Disable history file (privacy)
+# ── Privacy: disable shell history ──
 export HISTFILE=/dev/null
+unset HISTFILE
+export HISTSIZE=0
 
-# Set safe PATH (no system binaries exposed accidentally)
+# ── Minimal, safe PATH — only standard system binaries ──
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# Block dangerous commands by aliasing
-alias rm='echo "❌ rm command is disabled"'
-alias shutdown='echo "❌ shutdown is disabled"'
-alias reboot='echo "❌ reboot is disabled"'
-alias poweroff='echo "❌ poweroff is disabled"'
-alias init='echo "❌ init is disabled"'
-alias mount='echo "❌ mount is disabled"'
-alias umount='echo "❌ umount is disabled"'
-alias wget='echo "❌ network access disabled"'
-alias curl='echo "❌ network access disabled"'
-alias nc='echo "❌ network access disabled"'
-alias nmap='echo "❌ network scanning disabled"'
+# ── For interactive shells only: block dangerous commands ──
+# These aliases only protect against accidental misuse in
+# an interactive session. API commands are blocked upstream.
+if [[ $- == *i* ]]; then
+    alias rm='echo "❌ rm is disabled in this lab environment"'
+    alias shutdown='echo "❌ shutdown is disabled"'
+    alias reboot='echo "❌ reboot is disabled"'
+    alias poweroff='echo "❌ poweroff is disabled"'
+    alias wget='echo "❌ network access is disabled"'
+    alias curl='echo "❌ network access is disabled"'
+    alias nc='echo "❌ network access is disabled"'
+    alias nmap='echo "❌ network scanning is disabled"'
+    alias python3='echo "❌ python3 is not available in this lab"'
+    alias python='echo "❌ python is not available in this lab"'
+    alias perl='echo "❌ perl is not available in this lab"'
+    alias bash='echo "❌ spawning subshells is disabled"'
+    alias sh='echo "❌ spawning subshells is disabled"'
 
-echo "✅ Environment locked down"
-echo "🧪 Lab ready. Happy learning!"
+    echo "✅ Interactive shell ready"
+    echo "📂 Working directory: $(pwd)"
+    echo "📋 Allowed tools: john, hashcat, ls, cat, pwd, file, echo, clear, whoami"
+    echo "🚫 Network access, file deletion, and shell escapes are disabled"
+    echo ""
+fi
 
-# Start interactive shell (Terminal component connects here)
-exec /bin/bash
+# ── Hand off to the requested command (default: bash) ──
+exec "$@"

@@ -1,20 +1,25 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from app.core.database import SessionLocal
 from app.models.lab_session import LabSession
 from app.models.submission import Submission
 from app.models.leaderboard import Leaderboard
 from app.models.analytics import Analytics
-from app.services.docker_service import stop_lab_container
+from app.services.docker_service import on_password_cracked
 from app.core.security import get_current_user
 from app.models.user import User
 
 router = APIRouter(prefix="/submission", tags=["Submission"])
 
 
-# ---------- DB Dependency ----------
+class SubmitRequest(BaseModel):
+    session_id: int
+    submitted_password: str
+
+
 def get_db():
     db = SessionLocal()
     try:
@@ -23,19 +28,16 @@ def get_db():
         db.close()
 
 
-# ---------- Submit Password ----------
 @router.post("/submit")
 def submit_password(
-    session_id: int,
-    submitted_password: str,
+    payload: SubmitRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # ✅ AUTH
+    current_user: User = Depends(get_current_user),
 ):
-    # 🔐 Get session only for current user
     session = (
         db.query(LabSession)
         .filter(
-            LabSession.id == session_id,
+            LabSession.id == payload.session_id,
             LabSession.user_id == current_user.id
         )
         .first()
@@ -44,31 +46,43 @@ def submit_password(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    if session.status == "completed":
+        raise HTTPException(status_code=400, detail="Lab already completed")
+
+    if session.status == "expired":
+        raise HTTPException(status_code=400, detail="Lab session has expired — time ran out")
+
     if session.status != "running":
-        raise HTTPException(status_code=400, detail="Session already completed")
+        raise HTTPException(status_code=400, detail="Session is not active")
 
-    # ✅ Check password
-    is_correct = submitted_password == session.correct_password
+    is_correct = payload.submitted_password.strip() == session.correct_password.strip()
 
-    # 🔢 Track attempts
     session.attempts = (session.attempts or 0) + 1
 
-    # 🧾 Log submission
     submission = Submission(
         session_id=session.id,
-        submitted_password=submitted_password,
+        submitted_password=payload.submitted_password,
         is_correct=is_correct
     )
     db.add(submission)
 
-    # ✅ If correct → finish lab
+    time_taken = None
+
+    print("Submitted:", repr(payload.submitted_password))
+    print("Correct:", repr(session.correct_password))
     if is_correct:
         session.status = "completed"
         session.completed_at = datetime.now(timezone.utc)
 
-        time_taken = (session.completed_at - session.created_at).total_seconds()
+        # ✅ Ensure both timestamps are timezone aware
+        created_at = session.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
 
-        # 🎯 Base points per difficulty
+        time_taken = round(
+            (session.completed_at - created_at).total_seconds()
+        )
+
         base_points = {
             "beginner": 50,
             "intermediate": 100,
@@ -83,22 +97,29 @@ def submit_password(
         if time_taken > 600:
             score -= 20
 
-        # ❌ Attempt penalty (Free mode harder)
+        # ❌ Attempt penalty (non-beginner only)
         if session.difficulty != "beginner":
             score -= (session.attempts - 1) * 5
 
+        # 💡 Hint penalty carry-over
+        if session.hints_used and session.hints_used > 3:
+            score -= (session.hints_used - 3) * 5
+
         session.score = max(score, 10)
 
-        # 🧹 Stop container
+        # 🧹 DELETE CONTAINER SAFELY
         if session.container_id:
+            container_id = session.container_id
             try:
-                stop_lab_container(session.container_id)
-                session.container_id = None
-                session.container_port = None
+                on_password_cracked(container_id)
             except Exception as e:
                 print(f"Docker cleanup error: {e}")
 
-        # 🏆 Leaderboard update
+            # Clear container fields AFTER cleanup attempt
+            session.container_id = None
+            session.container_port = None
+
+        # 🏆 Leaderboard
         leaderboard = db.query(Leaderboard).filter(
             Leaderboard.user_id == session.user_id
         ).first()
@@ -106,13 +127,14 @@ def submit_password(
         if leaderboard:
             leaderboard.score += session.score
         else:
-            leaderboard = Leaderboard(
-                user_id=session.user_id,
-                score=session.score
+            db.add(
+                Leaderboard(
+                    user_id=session.user_id,
+                    score=session.score
+                )
             )
-            db.add(leaderboard)
 
-        # 📊 Analytics update
+        # 📊 Analytics
         analytics = db.query(Analytics).filter(
             Analytics.user_id == session.user_id
         ).first()
@@ -121,19 +143,31 @@ def submit_password(
             analytics.total_score += session.score
             analytics.total_time += time_taken
         else:
-            analytics = Analytics(
-                user_id=session.user_id,
-                total_score=session.score,
-                total_time=time_taken
+            db.add(
+                Analytics(
+                    user_id=session.user_id,
+                    total_score=session.score,
+                    total_time=time_taken
+                )
             )
-            db.add(analytics)
 
     db.commit()
 
     return {
         "success": is_correct,
+        "session_id": session.id,
         "session_status": session.status,
+        "difficulty": session.difficulty,
+        "mode": session.mode,
+        "algorithm": session.algorithm,
         "attempts": session.attempts,
-        "time_taken": time_taken if is_correct else None,
-        "score": session.score if is_correct else None
+        "hints_used": session.hints_used,
+        "time_taken_seconds": time_taken,
+        "score": session.score if is_correct else None,
+        "max_score": {"beginner": 50, "intermediate": 100, "advanced": 200}.get(session.difficulty),
+        "message": (
+            "Password cracked! Well done."
+            if is_correct else
+            "Incorrect password. Try again."
+        ),
     }

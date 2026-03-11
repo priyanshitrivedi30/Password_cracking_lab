@@ -1,34 +1,79 @@
+# ═══════════════════════════════════════════════════════════════
+# CyberCare Password Cracking Lab — Docker Compose
+#
+# Services:
+#   db      — PostgreSQL 15 database
+#   backend — FastAPI backend (port 8000)
+#
+# Lab containers are spawned dynamically by docker_service.py
+# using the pre-built "password-cracking-lab" image.
+# Build it once before starting:
+#   docker build -t password-cracking-lab ./lab_runtime
+#
+# Usage:
+#   cp .env.example .env   (fill in real values)
+#   docker compose up --build
+# ═══════════════════════════════════════════════════════════════
+
 services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: password_lab_db
+    restart: unless-stopped
+    env_file: .env
     environment:
-      POSTGRES_DB: passwordlab
-      POSTGRES_USER: lab1admin
-      POSTGRES_PASSWORD: pvtp3003
+      POSTGRES_DB:       ${POSTGRES_DB}
+      POSTGRES_USER:     ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lab1admin -d passwordlab"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
+      start_period: 10s
 
+  # ── FastAPI Backend ─────────────────────────────────────────
   backend:
     container_name: password_lab_backend
     build:
       context: ../backend
       dockerfile: Dockerfile
+    user: root
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
+   
     environment:
-      DATABASE_URL: postgresql://lab1admin:pvtp3003@db:5432/passwordlab
+      DATABASE_URL:    postgresql://lab1admin:pvtp3003@db:5432/passwordlab
+      SECRET_KEY:      2b0ef320c0922e8c038a372a2854a3503dc49d44ec31b4b03df411d42330efaf
+      ALLOWED_ORIGINS: http://localhost:5173
+      DEBUG_SQL:       ${DEBUG_SQL:-false}
+      WORDLIST_DIR:    ${WORDLIST_DIR:-/app}
+      LAB_IMAGE_NAME:  ${LAB_IMAGE_NAME:-password-cracking-lab}
+      DOCKER_HOST:     unix:///var/run/docker.sock
     volumes:
+      # Docker socket — backend needs this to spawn lab containers
       - /var/run/docker.sock:/var/run/docker.sock
     ports:
       - "8000:8000"
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - backend_net
 
+# ── Named Volumes ─────────────────────────────────────────────
 volumes:
   postgres_data:
+    driver: local
+
+# ── Networks ──────────────────────────────────────────────────
+# backend_net: db <-> backend only
+# Lab containers are spawned with --network none by docker_service.py
+networks:
+  backend_net:
+    driver: bridge

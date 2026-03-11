@@ -1,0 +1,45 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.pyc
+
+# Virtual environments
+venv/
+env/
+.venv/
+ENV/
+
+# Environment files — NEVER copy .env into Docker image
+.env
+.env.*
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Test files
+tests/
+test_*
+*_test.py
+pytest.ini
+.pytest_cache/
+
+# Docker itself
+Dockerfile
+.dockerignore
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

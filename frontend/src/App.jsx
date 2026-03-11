@@ -1,43 +1,54 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+// App.jsx
+// Route structure:
+//   PUBLIC  (no auth): /welcome, /login, /register
+//   PRIVATE (auth):    /overview, /labinfo, /lab, /analytics, /leaderboard, /result
+//
+// Flow per spec:
+//   / or unknown → /welcome (public landing)
+//   login success → /overview (step 1, dashboard)
+//   register success → /overview
+
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useState } from "react";
 
-import Login from "./pages/login";
-import Register from "./pages/register";
-import Overview from "./pages/overview";
-import LabInfo from "./pages/labinfo";
-import Lab from "./pages/lab";
-import Analytics from "./pages/analytics";
+import Welcome     from "./pages/welcome";
+import Login       from "./pages/login";
+import Register    from "./pages/register";
+import Overview    from "./pages/overview";
+import LabInfo     from "./pages/labinfo";
+import Lab         from "./pages/lab";
+import Analytics   from "./pages/analytics";
 import Leaderboard from "./pages/leaderboard";
-import Navbar from "./components/navbar";
+import Result      from "./pages/result";
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [token, setToken] = useState(() => localStorage.getItem("token"));
 
   return (
     <BrowserRouter>
-      {!token ? (
-        <Routes>
-          <Route path="/register" element={<Register />} />
-          <Route path="*" element={<Login setToken={setToken} />} />
-        </Routes>
-      ) : (
-        <>
-          <Navbar />
-          <Routes>
-            {/* ✅ Optional learning page */}
-            <Route path="/overview" element={<Overview />} />
+      <Routes>
 
-            {/* ✅ Mandatory disclaimer + difficulty */}
-            <Route path="/labinfo" element={<LabInfo />} />
+        {/* ── Public routes ── */}
+        <Route path="/welcome"  element={<Welcome />} />
+        <Route path="/login"    element={<Login setToken={setToken} />} />
+        <Route path="/register" element={<Register setToken={setToken} />} />
 
-            {/* ✅ Actual lab */}
-            <Route path="/lab" element={<Lab />} />
+        {/* ── Protected routes ── */}
+        <Route path="/overview"    element={token ? <Overview />    : <Navigate to="/login" replace />} />
+        <Route path="/labinfo"     element={token ? <LabInfo />     : <Navigate to="/login" replace />} />
+        <Route path="/lab"         element={token ? <Lab />         : <Navigate to="/login" replace />} />
+        <Route path="/analytics"   element={token ? <Analytics />   : <Navigate to="/login" replace />} />
+        <Route path="/leaderboard" element={token ? <Leaderboard /> : <Navigate to="/login" replace />} />
+        <Route path="/result"      element={token ? <Result />      : <Navigate to="/login" replace />} />
 
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/leaderboard" element={<Leaderboard />} />
-          </Routes>
-        </>
-      )}
+        {/* ── Catch-all ── */}
+        {/* Logged in → overview (step 1/dashboard). Not logged in → public welcome page */}
+        <Route
+          path="*"
+          element={token ? <Navigate to="/overview" replace /> : <Navigate to="/welcome" replace />}
+        />
+
+      </Routes>
     </BrowserRouter>
   );
 }

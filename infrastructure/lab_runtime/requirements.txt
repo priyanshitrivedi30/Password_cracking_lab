@@ -1,12 +1,39 @@
-fastapi
-uvicorn
-sqlalchemy
-psycopg2-binary
-python-dotenv
-passlib[bcrypt]==1.7.4
-bcrypt==3.2.2
-python-jose
-docker
-python-multipart
-alembic
-email-validator
+# ─────────────────────────────────────────────────────────────
+# Web Framework
+# ─────────────────────────────────────────────────────────────
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9        # required for OAuth2 form login
+
+# ─────────────────────────────────────────────────────────────
+# Database
+# ─────────────────────────────────────────────────────────────
+sqlalchemy==2.0.30
+psycopg2-binary==2.9.9         # PostgreSQL driver
+alembic==1.13.1                # DB migrations
+
+# ─────────────────────────────────────────────────────────────
+# Authentication / Security
+# ─────────────────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0   # JWT — cryptography extra included
+cryptography==42.0.5               # ✅ explicit dep for python-jose JWT signing
+passlib[bcrypt]==1.7.4             # password hashing — pinned for bcrypt compat
+bcrypt==3.2.2                      # ✅ pinned — 4.x breaks passlib 1.7.4
+
+# ─────────────────────────────────────────────────────────────
+# Validation
+# ─────────────────────────────────────────────────────────────
+pydantic[email]==2.7.1             # ✅ [email] extra required for EmailStr in Pydantic v2
+email-validator==2.1.1             # email validation backend for pydantic
+
+# ─────────────────────────────────────────────────────────────
+# Environment / Config
+# ─────────────────────────────────────────────────────────────
+python-dotenv==1.0.1               # loads .env file
+
+# ─────────────────────────────────────────────────────────────
+# Docker SDK (for container management)
+# ─────────────────────────────────────────────────────────────
+docker==6.1.3
+urllib3==1.26.18
+requests==2.31.0
