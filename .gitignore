@@ -4,3 +4,4 @@ models/__pycache__/
 service/__pycache__/
 node_modules/
 assets/react.svg
+.env
